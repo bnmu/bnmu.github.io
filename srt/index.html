@@ -288,7 +288,7 @@
       <h1>SRT 字幕清洗工具</h1>
       <p class="subtitle">
         上传原始字幕文件后，网页会保留编号与相对时间，提取第三行里的实际时间，
-        并移除 `lat / lon` 行，随后生成可下载的新 `.srt` 文件。
+        并移除 `lat / lon` 行，随后生成保留原扩展名的可下载文件。
       </p>
     </section>
 
@@ -300,14 +300,14 @@
             <span class="file-picker-badge">SRT</span>
             <span class="file-picker-text">
               <span class="file-picker-title">选择字幕文件</span>
-              <span class="file-picker-hint">点击这里选择 `.srt` 文件</span>
+              <span class="file-picker-hint">点击这里选择要处理的字幕文件</span>
               <span class="file-picker-name" id="pickerFileName">当前未选择文件</span>
             </span>
           </label>
           <button id="processButton" type="button">处理并生成下载文件</button>
           <a id="downloadLink" class="download-link" download>下载处理后文件</a>
         </div>
-        <p id="status" class="status">请选择一个 `.srt` 文件。</p>
+        <p id="status" class="status">请选择一个要处理的字幕文件。</p>
         <div class="meta">
           <span id="fileName">文件名：未选择</span>
           <span id="blockCount">字幕段数：0</span>
@@ -361,6 +361,26 @@
       return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     }
 
+    function getFileExtension(name) {
+      const dotIndex = name.lastIndexOf(".");
+      return dotIndex > -1 ? name.slice(dotIndex + 1).toLowerCase() : "";
+    }
+
+    function getDownloadMimeType(name) {
+      const extension = getFileExtension(name);
+
+      switch (extension) {
+        case "srt":
+          return "application/x-subrip;charset=utf-8";
+        case "vtt":
+          return "text/vtt;charset=utf-8";
+        case "txt":
+          return "text/plain;charset=utf-8";
+        default:
+          return "application/octet-stream";
+      }
+    }
+
     function transformBlock(block) {
       const lines = block
         .split("\n")
@@ -406,7 +426,7 @@
         fileName.textContent = "文件名：未选择";
         blockCount.textContent = "字幕段数：0";
         preview.textContent = "处理结果会显示在这里。";
-        setStatus("请选择一个 `.srt` 文件。");
+        setStatus("请选择一个要处理的字幕文件。");
         return;
       }
 
@@ -420,7 +440,7 @@
       const file = fileInput.files[0];
 
       if (!file) {
-        setStatus("请先选择一个 `.srt` 文件。", "error");
+        setStatus("请先选择一个要处理的字幕文件。", "error");
         return;
       }
 
@@ -439,9 +459,16 @@
         preview.textContent = result.output;
         blockCount.textContent = `字幕段数：${result.blockTotal}`;
 
-        const outputName = file.name.replace(/(\.srt)?$/i, "_processed.srt");
-        const blob = new Blob([result.output], { type: "text/plain;charset=utf-8" });
-        currentDownloadUrl = URL.createObjectURL(blob);
+        const dotIndex = file.name.lastIndexOf(".");
+        const outputName = dotIndex > 0
+          ? `${file.name.slice(0, dotIndex)}_processed${file.name.slice(dotIndex)}`
+          : `${file.name}_processed`;
+        const downloadFile = new File(
+          [result.output],
+          outputName,
+          { type: getDownloadMimeType(outputName) }
+        );
+        currentDownloadUrl = URL.createObjectURL(downloadFile);
 
         downloadLink.href = currentDownloadUrl;
         downloadLink.download = outputName;
